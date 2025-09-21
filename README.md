@@ -15,6 +15,251 @@ This project teaches you:
 
 ---
 
+## 🎓 **Student Instructions: Fork, Clone & Deploy**
+
+### **📋 Prerequisites**
+Before starting, ensure you have:
+- GitHub account
+- CSC Rahti (OpenShift) access with project namespace
+- Finnhub API key (free from https://finnhub.io/)
+- Basic knowledge of Git, Docker, and Kubernetes concepts
+
+### **🍴 Step 1: Fork This Repository**
+
+1. **Visit the repository**: https://github.com/Vikke82/data-analysis-pipeline-microservices
+2. **Click "Fork"** in the top-right corner
+3. **Select your GitHub account** as the destination
+4. **Wait for fork creation** - GitHub will create your personal copy
+
+### **📥 Step 2: Clone Your Fork**
+
+```bash
+# Clone your forked repository
+git clone https://github.com/YOUR-USERNAME/data-analysis-pipeline-microservices.git
+
+# Navigate to the project directory
+cd data-analysis-pipeline-microservices
+
+# Verify the repository structure
+ls -la
+```
+
+**Expected directory structure:**
+```
+data-analysis-pipeline-microservices/
+├── data-ingest/              # Stock data fetching service
+├── data-clean/               # Data processing service  
+├── data-visualization/       # Streamlit dashboard
+├── k8s-microservices/       # Kubernetes YAML files
+├── docs/                    # Documentation
+├── scripts/                 # Deployment scripts
+├── INFRASTRUCTURE_GUIDE.md  # Complete infrastructure guide
+└── README.md               # This file
+```
+
+### **🔑 Step 3: Get Finnhub API Key**
+
+1. **Visit Finnhub**: https://finnhub.io/register
+2. **Create free account** with your email
+3. **Go to Dashboard** → **API Keys**
+4. **Copy your API key** (format: `abcd1234efgh5678`)
+5. **Keep it secure** - you'll need it for deployment
+
+### **🚀 Step 4: Deploy to CSC Rahti (OpenShift)**
+
+#### **4.1 Access CSC Rahti**
+```bash
+# Login to CSC Rahti OpenShift cluster
+oc login https://rahti.csc.fi:8443
+
+# Create your project namespace (replace YOUR-NAME with your name)
+oc new-project stock-pipeline-YOUR-NAME --display-name="Stock Market Pipeline - YOUR-NAME"
+
+# Verify you're in the right project
+oc project
+```
+
+#### **4.2 Configure Finnhub API Key**
+```bash
+# Navigate to Kubernetes configurations
+cd k8s-microservices
+
+# Edit the Finnhub configuration file
+# Replace 'your-api-key-here' with your actual API key
+nano finnhub-config.yaml
+```
+
+**Update this section in `finnhub-config.yaml`:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: finnhub-credentials
+  namespace: stock-pipeline-YOUR-NAME  # Update namespace
+type: Opaque
+stringData:
+  FINNHUB_API_KEY: "your-actual-finnhub-api-key-here"  # Replace this
+```
+
+#### **4.3 Deploy Infrastructure Components**
+```bash
+# Deploy in the correct order:
+
+# 1. Create persistent storage
+oc apply -f persistent-volume.yaml
+
+# 2. Deploy Redis message queue
+oc apply -f redis-deployment.yaml
+
+# 3. Configure API credentials
+oc apply -f finnhub-config.yaml
+
+# 4. Deploy data ingestion service
+oc apply -f data-ingest-deployment.yaml
+
+# 5. Deploy data visualization dashboard
+oc apply -f data-visualization-deployment.yaml
+
+# Optional: Deploy data cleaning service
+oc apply -f data-clean-deployment.yaml
+```
+
+#### **4.4 Verify Deployment**
+```bash
+# Check all pods are running
+oc get pods
+
+# Expected output (may take 2-3 minutes):
+# NAME                                  READY   STATUS    RESTARTS   AGE
+# data-ingest-xxxxxxxxx-xxxxx          1/1     Running   0          2m
+# data-visualization-xxxxxxxxx-xxxxx   1/1     Running   0          1m
+# redis-xxxxxxxxx-xxxxx                1/1     Running   0          3m
+
+# Check services
+oc get services
+
+# Check persistent volume claims
+oc get pvc
+```
+
+#### **4.5 Create External Access Route**
+```bash
+# Create route for web dashboard access
+oc expose service data-visualization-service --name=stock-dashboard-route
+
+# Get the external URL
+oc get routes
+
+# Example output:
+# NAME                   HOST/PORT                                    PATH   SERVICES
+# stock-dashboard-route  stock-dashboard-route-stock-pipeline-YOUR-NAME.rahtiapp.fi...
+```
+
+### **🌐 Step 5: Access Your Application**
+
+1. **Copy the route URL** from the previous step
+2. **Open in browser**: `https://stock-dashboard-route-stock-pipeline-YOUR-NAME.rahtiapp.fi`
+3. **Wait for data ingestion** (first run takes 1-2 minutes)
+4. **Explore the dashboard**:
+   - Real-time stock prices
+   - Interactive candlestick charts  
+   - Technical indicators (SMA, EMA, RSI, MACD)
+   - Market overview and analysis
+
+### **🐛 Troubleshooting Common Issues**
+
+#### **Problem: Pods stuck in "ContainerCreating"**
+```bash
+# Check pod details
+oc describe pod POD-NAME
+
+# Common causes:
+# - Image pull issues
+# - Volume mounting problems
+# - Resource constraints
+```
+
+#### **Problem: "Multi-Attach error for volume"**
+```bash
+# Only one pod can mount the shared volume at a time
+# Scale down conflicting services:
+oc scale deployment data-ingest --replicas=0
+oc scale deployment data-visualization --replicas=1
+
+# Or vice versa for data collection:
+oc scale deployment data-visualization --replicas=0  
+oc scale deployment data-ingest --replicas=1
+```
+
+#### **Problem: API key not working**
+```bash
+# Verify secret was created correctly
+oc get secrets finnhub-credentials -o yaml
+
+# Check pod logs for API errors
+oc logs deployment/data-ingest
+```
+
+#### **Problem: Dashboard not loading**
+```bash
+# Check visualization pod logs
+oc logs deployment/data-visualization
+
+# Verify route is accessible
+oc get routes
+
+# Check service endpoints
+oc get endpoints
+```
+
+### **📊 Understanding the Data Pipeline**
+
+#### **Data Flow:**
+```
+1. Data-Ingest Pod → Fetches stock data from Finnhub API every 15 minutes
+2. Saves data to shared persistent volume as CSV files
+3. Data-Visualization Pod → Reads CSV files and displays interactive dashboard
+4. Redis → Coordinates communication between services
+```
+
+#### **Generated Data Files:**
+Your application creates these files in the shared storage:
+- `stock_quotes_YYYYMMDD_HHMMSS.csv` - Real-time stock prices
+- `stock_historical_YYYYMMDD_HHMMSS.csv` - Historical price data
+- Technical analysis data with indicators
+
+#### **Monitoring Your Application:**
+```bash
+# Check resource usage
+oc top pods
+
+# Monitor logs in real-time  
+oc logs -f deployment/data-ingest
+oc logs -f deployment/data-visualization
+
+# Check service status
+oc get all
+```
+
+### **💡 Learning Exercises**
+
+1. **Modify Stock Symbols**: Edit the deployment YAML to track different stocks
+2. **Adjust Resource Limits**: Experiment with CPU/memory limits in deployments  
+3. **Add New Technical Indicators**: Extend the data processing logic
+4. **Implement Alerts**: Add email/Slack notifications for significant price changes
+5. **Scale Services**: Try horizontal pod autoscaling
+6. **Add Monitoring**: Implement Prometheus metrics collection
+
+### **📚 Additional Resources**
+
+- **OpenShift Documentation**: https://docs.openshift.com/
+- **CSC Rahti User Guide**: https://docs.csc.fi/cloud/rahti/
+- **Finnhub API Documentation**: https://finnhub.io/docs/api
+- **Kubernetes Concepts**: https://kubernetes.io/docs/concepts/
+- **Streamlit Documentation**: https://docs.streamlit.io/
+
+---
+
 ## 🏗️ **Application Structure & Components**
 
 ### **Architecture Overview**
@@ -547,6 +792,137 @@ If you prefer automated deployment, use the provided scripts:
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+---
+
+## 🎓 **For Instructors: Classroom Use**
+
+### **Course Integration**
+This project is designed for **Cloud Computing**, **Software Architecture**, and **DevOps** courses. It covers:
+
+**Week-by-Week Learning Path:**
+- **Week 1-2**: Docker containerization and microservices concepts
+- **Week 3-4**: Kubernetes/OpenShift deployment and service management
+- **Week 5-6**: API integration and real-time data processing
+- **Week 7-8**: Monitoring, scaling, and troubleshooting
+
+**Assessment Opportunities:**
+- **Lab Assignment**: Deploy and customize the pipeline
+- **Project Extension**: Add new data sources or technical indicators
+- **Architecture Analysis**: Compare monolithic vs. microservices approaches
+- **Performance Tuning**: Optimize resource usage and scaling
+
+### **Student Assignment Ideas**
+1. **Extend Data Sources**: Add cryptocurrency or forex data APIs
+2. **Implement Alerting**: Email/Slack notifications for price thresholds
+3. **Add Machine Learning**: Stock price prediction models
+4. **Performance Monitoring**: Prometheus + Grafana integration
+5. **Security Enhancement**: Add authentication and HTTPS
+6. **Multi-Region Deployment**: Deploy across multiple CSC Rahti regions
+
+### **Grading Rubric Suggestions**
+- **Deployment (25%)**: Successfully deploy all services
+- **Customization (25%)**: Modify configurations and add features  
+- **Documentation (20%)**: Document changes and architecture decisions
+- **Troubleshooting (15%)**: Demonstrate problem-solving skills
+- **Presentation (15%)**: Explain architecture and design choices
+
+## 🤝 **Contributing**
+
+We welcome contributions from students and instructors! Here's how to contribute:
+
+### **For Students**
+1. **Fork the repository** to your GitHub account
+2. **Create a feature branch**: `git checkout -b feature/your-enhancement`
+3. **Make your changes** and commit with clear messages
+4. **Test thoroughly** in your CSC Rahti environment
+5. **Submit a Pull Request** with detailed description
+
+**Contribution Ideas:**
+- Fix bugs or improve error handling
+- Add new technical indicators
+- Improve dashboard UI/UX
+- Add unit tests
+- Enhance documentation
+- Optimize Docker images
+- Add new data visualization types
+
+### **For Instructors**
+- Submit course material suggestions
+- Share assignment ideas and rubrics
+- Report issues or propose improvements
+- Contribute learning exercises
+- Add deployment guides for other cloud platforms
+
+### **Development Setup**
+```bash
+# Clone your fork
+git clone https://github.com/YOUR-USERNAME/data-analysis-pipeline-microservices.git
+cd data-analysis-pipeline-microservices
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r data-ingest/requirements.txt
+pip install -r data-visualization/requirements.txt
+
+# Run services locally for development
+cd data-ingest && python app.py
+cd data-visualization && streamlit run app.py
+```
+
+### **Pull Request Guidelines**
+- Provide clear description of changes
+- Include screenshots for UI changes
+- Test deployment on CSC Rahti
+- Update documentation as needed
+- Follow Python PEP 8 style guidelines
+- Add comments for complex logic
+
+## 📖 **Educational Resources**
+
+### **Recommended Reading**
+- **"Microservices Patterns"** by Chris Richardson
+- **"Kubernetes in Action"** by Marko Lukša  
+- **"Docker Deep Dive"** by Nigel Poulton
+- **CSC Rahti Documentation**: https://docs.csc.fi/cloud/rahti/
+
+### **Online Courses**
+- **Kubernetes Basics** (Kubernetes Academy)
+- **Docker Essentials** (Docker Hub)
+- **OpenShift for Developers** (Red Hat Learning)
+- **Python for Finance** (Coursera)
+
+### **Hands-On Labs**
+- **Katacoda OpenShift Scenarios**: https://learn.openshift.com/
+- **Kubernetes by Example**: https://kubernetesbyexample.com/
+- **Docker Labs**: https://labs.play-with-docker.com/
+
+## 🏆 **Success Stories**
+
+Students have successfully:
+- **Extended the pipeline** with cryptocurrency data
+- **Implemented machine learning** price prediction models
+- **Added monitoring** with Prometheus and Grafana
+- **Created mobile dashboards** using React Native
+- **Built CI/CD pipelines** with GitHub Actions
+- **Deployed to multiple clouds** (AWS, Azure, GCP)
+
+## 📞 **Support Channels**
+
+### **For Students**
+1. **GitHub Issues**: Report bugs and ask technical questions
+2. **Course Forum**: Discuss with classmates and instructors
+3. **Office Hours**: Meet with instructors for personalized help
+4. **Study Groups**: Form teams for collaborative learning
+
+### **For Instructors**  
+1. **Instructor Portal**: Access teaching materials and guides
+2. **Community Forum**: Connect with other educators
+3. **Email Support**: Direct contact for course integration
+4. **Webinars**: Monthly sessions on microservices education
 
 ---
 
