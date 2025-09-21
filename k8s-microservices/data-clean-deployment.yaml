@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-clean
+  labels:
+    app: data-clean
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-clean
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: data-clean
+        tier: backend
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: 2-rcr6j-worker-0-jt9qr
+      containers:
+      - name: data-clean
+        image: docker.io/vikke82/data-clean:stock-v1.0
+        imagePullPolicy: Always
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: REDIS_PORT
+        - name: SHARED_DATA_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: SHARED_DATA_PATH
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: LOG_LEVEL
+        - name: PROCESSING_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: PROCESSING_INTERVAL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - name: shared-data
+          mountPath: /shared/data
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import redis; r = redis.Redis(host='redis-service'); r.ping(); print('OK')"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+      volumes:
+      - name: shared-data
+        persistentVolumeClaim:
+          claimName: shared-data-pvc
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-clean-service
+  labels:
+    app: data-clean
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: data-clean
+    tier: backend

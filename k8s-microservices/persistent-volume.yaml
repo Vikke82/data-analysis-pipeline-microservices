@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-data-pvc
+  labels:
+    app: data-pipeline-microservices
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard-csi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  labels:
+    app: data-pipeline-microservices
+data:
+  SHARED_DATA_PATH: "/shared/data"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  PROCESSING_INTERVAL: "30"
+  LOG_LEVEL: "INFO"

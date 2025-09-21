@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: finnhub-credentials
+  labels:
+    app: data-pipeline
+type: Opaque
+stringData:
+  # Raw Finnhub API key (no base64 encoding needed with stringData)
+  # Replace with your actual Finnhub API key from https://finnhub.io/
+  FINNHUB_API_KEY: d36h25hr01qumnp5n2g0d36h25hr01qumnp5n2gg
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+  labels:
+    app: data-pipeline
+data:
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  SHARED_DATA_PATH: "/shared/data"
+  LOG_LEVEL: "INFO"
+  # Stock symbols for data collection (comma-separated)
+  STOCK_SYMBOLS: "AAPL,GOOGL,MSFT,TSLA,AMZN,NVDA,META"
+  # Processing interval for services (seconds)
+  PROCESSING_INTERVAL: "900"

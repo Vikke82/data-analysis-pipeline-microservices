@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-ingest
+  labels:
+    app: data-ingest
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-ingest
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: data-ingest
+        tier: backend
+    spec:
+      containers:
+      - name: data-ingest
+        image: docker.io/vikke82/data-ingest:stock-v1.0
+        imagePullPolicy: Always
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: REDIS_PORT
+        - name: SHARED_DATA_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: SHARED_DATA_PATH
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: LOG_LEVEL
+        - name: FINNHUB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: finnhub-credentials
+              key: FINNHUB_API_KEY
+        - name: STOCK_SYMBOLS
+          valueFrom:
+            configMapKeyRef:
+              name: pipeline-config
+              key: STOCK_SYMBOLS
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - name: shared-data
+          mountPath: /shared/data
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import redis; r = redis.Redis(host='redis-service'); r.ping(); print('OK')"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+      volumes:
+      - name: shared-data
+        persistentVolumeClaim:
+          claimName: shared-data-pvc
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-ingest-service
+  labels:
+    app: data-ingest
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: data-ingest
+    tier: backend
