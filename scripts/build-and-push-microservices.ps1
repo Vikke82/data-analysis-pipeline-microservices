@@ -177,7 +177,7 @@ $services = @(
     @{
         Name = "data-ingest"
         Path = "data-ingest"
-        Description = "Data ingestion from CSC Allas"
+        Description = "Stock market data ingestion from Finnhub API"
     },
     @{
         Name = "data-clean"

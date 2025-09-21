@@ -7,7 +7,6 @@ Displays real-time stock quotes, historical data, and technical indicators.
 """
 
 import os
-import sys
 import time
 import json
 import glob

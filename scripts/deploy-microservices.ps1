@@ -28,7 +28,7 @@ EXAMPLES:
 PREREQUISITES:
     - OpenShift CLI (oc) installed and logged in
     - Container images built and pushed to registry
-    - CSC Allas credentials configured
+    - Finnhub API credentials configured
 
 "@
     exit 0
@@ -73,26 +73,20 @@ catch {
     exit 1
 }
 
-# Check if Allas credentials secret exists
+# Check if Finnhub credentials secret exists
 Write-Host ""
-Write-Host "🔑 Checking Allas credentials..." -ForegroundColor Yellow
+Write-Host "🔑 Checking Finnhub credentials..." -ForegroundColor Yellow
 try {
-    oc get secret allas-credentials | Out-Null
-    Write-Host "   ✅ Allas credentials secret found" -ForegroundColor Green
+    oc get secret finnhub-credentials | Out-Null
+    Write-Host "   ✅ Finnhub credentials secret found" -ForegroundColor Green
 }
 catch {
-    Write-Host "   ❌ Allas credentials secret not found!" -ForegroundColor Red
+    Write-Host "   ❌ Finnhub credentials secret not found!" -ForegroundColor Red
     Write-Host ""
-    Write-Host "📋 To create Allas credentials secret, run:" -ForegroundColor Yellow
+    Write-Host "📋 To create Finnhub credentials secret, run:" -ForegroundColor Yellow
     Write-Host @"
-oc create secret generic allas-credentials \
-  --from-literal=OS_AUTH_URL=https://pouta.csc.fi:5001/v3 \
-  --from-literal=OS_USERNAME=your_csc_username \
-  --from-literal=OS_PASSWORD=your_csc_password \
-  --from-literal=OS_PROJECT_NAME=project_XXXXXXX \
-  --from-literal=OS_PROJECT_DOMAIN_NAME=Default \
-  --from-literal=OS_USER_DOMAIN_NAME=Default \
-  --from-literal=DATA_BUCKET=your_container_name
+oc create secret generic finnhub-credentials \
+  --from-literal=FINNHUB_API_KEY=your_finnhub_api_key
 "@ -ForegroundColor White
     Write-Host ""
     exit 1
@@ -114,7 +108,7 @@ $deploymentSteps = @(
     @{
         Name = "Data Ingestion Service"
         Files = @("k8s-microservices\data-ingest-deployment.yaml")
-        Description = "CSC Allas data ingestion"
+        Description = "Stock market data ingestion from Finnhub API"
         WaitFor = "deployment/data-ingest"
     },
     @{
